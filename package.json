@@ -24,6 +24,7 @@
     "btc-e": "0.0.x",
     "btc-markets": "0.0.6",
     "cexio": "0.0.x",
+    "circular-buffer": "^1.0.2",
     "co-fs": "^1.2.0",
     "commander": "^2.9.0",
     "gdax": "0.3.0",

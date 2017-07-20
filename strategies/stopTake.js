@@ -12,7 +12,7 @@ var log = require('../core/log');
 
 // configuration
 var config = require('../core/util.js').getConfig();
-var settings = config.custom;
+var settings = config.stopTake;
 
 // Let's create our own strat
 var strat = {};
