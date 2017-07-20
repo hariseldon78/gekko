@@ -18,7 +18,61 @@ var settings = config.stopTrailing;
 // Let's create our own strat
 var strat = {};
 
+class Stochastic {
+    constructor(periods) {
+        this.periods=periods;
+        this.setupCompleted=false;
+        this.k=0;
+        this.d=0;
+        this.kHistory=new CircularBuffer(3);
+        this.candlesHistory=new CircularBuffer(this.periods);
+    }
 
+    newCandle(candle) {
+        this.candlesHistory.enq(candle);
+        if (this.candlesHistory.size()<this.periods) return;
+
+        this.setupCompleted=true;
+
+        let low = candle.low;
+        let high = candle.high;
+
+        for (let i = 0; i < this.periods; i++) {
+            let elem = this.candlesHistory.get(i);
+            low = Math.min(low, elem.low);
+            high = Math.max(high, elem.high);
+        }
+
+        this.k=100*(candle.close - low)/(high-low);
+        // console.log("K:",k);
+        this.kHistory.enq(this.k);
+        this.d=this.kHistory.toarray().reduce((a,b)=>a+b,0)/this.kHistory.size();
+    }
+
+}
+
+class TimeFrameAccumulator {
+    constructor(multiplicator) {
+        this.multiplicator=multiplicator;
+        this.buffer=new Array(multiplicator)
+        this.bufferSize=0;
+    }
+    newCandle(candle) {
+        this.buffer[this.bufferSize++]=candle;
+        if (this.bufferSize==this.multiplicator) {
+            let output=this.buffer.reduce((a,b)=>{
+                return {low:Math.min(a.low,b.low),high:Math.max(a.high,b.high)}
+            },candle);
+            output.open=this.buffer[0].open;
+            output.close=candle.close;
+            this.bufferSize=0;
+            return output;
+        } else {
+            return null;
+        }
+    }
+
+}
 // Prepare everything our method needs
 strat.init = function () {
     // this.currentTrend = 'long';
@@ -29,13 +83,15 @@ strat.init = function () {
     this.trails=0;
     this.evens=0;
 
-    this.stochSizes=[settings.entry.stoch1,settings.entry.stoch2,settings.entry.stoch3,settings.entry.stoch4];
+    this.stochSizes=[settings.entry.stoch1,settings.entry.stoch2,settings.entry.stoch3];
     this.maxHistory=this.stochSizes.reduce((a,b)=>Math.max(a,b),0);
     this.requiredHistory = this.maxHistory+1;
 
     this.age=0;
-    this.history=new CircularBuffer(this.maxHistory);
-    this.stochastics=[{k:[0,0,0],d:0},{k:[0,0,0],d:0},{k:[0,0,0],d:0},{k:[0,0,0],d:0}];
+    this.accumulators=settings.entry.timeFrames.map(
+        tf=>new TimeFrameAccumulator(tf));
+    this.stochastics=settings.entry.timeFrames.map(
+        ()=>new Stochastic(settings.entry.stochastic));
 
     this.setupCompleted=false;
 
@@ -44,41 +100,17 @@ strat.init = function () {
 
 // What happens on every new candle?
 strat.update = function (candle) {
-    this.history.enq(candle);
-    // console.log("size:",this.history.size(),this.maxHistory);
-    if (this.history.size() < this.maxHistory) {
-        // console.log("ret");
-        return; // non funziona finchè non abbiamo tutti i dati
-    }
-    // console.log('update');
-    this.setupCompleted=true;
-
-
-    // http://stockcharts.com/school/doku.php?id=chart_school:technical_indicators:stochastic_oscillator_fast_slow_and_full
-
-    let low = candle.low;
-    let high = candle.high;
-    let prevSize = 0;
-    // si puo' accelerare molto l'algoritmo memorizzando gli indici dei vari low e high, e confrontando
-    // di volta in volta la nuova candle con quelli. poi quando escono dalla coda si rifà la ricerca.
-    for (let indicator = 0; indicator < 4; indicator++) {
-        for (let i = prevSize; i < this.stochSizes[indicator]; i++) {
-            let elem = this.history.get(i);
-            low = Math.min(low, elem.low);
-            high = Math.max(high, elem.high);
+    let allSetupsCompleted=true;
+    for (let i=0;i<this.accumulators.length;i++) {
+        let tfCandle=this.accumulators[i].newCandle(candle);
+        if (tfCandle!=null) {
+            // console.log("updating time frame",settings.entry.timeFrames[i]);
+            this.stochastics[i].newCandle(tfCandle);
         }
-
-        let k=100*(candle.close - low)/(high-low);
-        // console.log("K:",k);
-        let klist=this.stochastics[indicator].k;
-        klist.push(k);
-        klist.shift();
-        this.stochastics[indicator].d=klist.reduce((a,b)=>a+b,0)/3;
-
-        prevSize=this.stochSizes[indicator];
+        if (!this.stochastics[i].setupCompleted)
+            allSetupsCompleted=false;
     }
-
-
+    this.setupCompleted=allSetupsCompleted;
 };
 
 // For debugging purposes.
@@ -121,11 +153,16 @@ strat.check = function (candle) {
             console.log('-stops:',this.stops,'trails:',this.trails,'evens:',this.evens);
         }
     } else {
-        if (this.stochastics[0].k[2]<settings.entry.tresholdMin &&
-            this.stochastics[1].k[2]<settings.entry.tresholdMin &&
-            this.stochastics[2].k[2]<settings.entry.tresholdMin &&
-            this.stochastics[3].k[2]<settings.entry.tresholdMin) {
-            console.log('entry:',this.stochastics[0].k[2],this.stochastics[1].k[2],this.stochastics[2].k[2],this.stochastics[3].k[2]);
+        let totalChecks=0;
+        let okChecks=0;
+        for (let i=0;i<settings.entry.timeFrames.length;i++) {
+            totalChecks++;
+            if (this.stochastics[i].k<settings.entry.tresholdMin)
+                okChecks++;
+        }
+
+        if (okChecks/totalChecks > settings.entry.confidence) {
+            console.log('entry:',this.stochastics[0].k,this.stochastics[1].k,this.stochastics[2].k,this.stochastics[3].k);
             this.advice('long');
             this.positionOpen=true;
 

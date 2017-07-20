@@ -4,8 +4,7 @@ trailing = 0.2
 breakEven = 0.012
 
 [entry]
-stoch1 = 14
-stoch2 = 70
-stoch3 = 350
-stoch4 = 1750
-tresholdMin = 48
+stochastic = 14
+timeFrames = [1,5,15,60]
+stochasticTresholdMin = 3
+confidence = 0.9
