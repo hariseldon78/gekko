@@ -5,6 +5,7 @@ const moment = require('moment');
 const pipelineRunner = promisify(require('../../core/workers/pipeline/parent'));
 const cache = require('../state/cache');
 const broadcast = cache.get('broadcast');
+const apiKeyManager= cache.get('apiKeyManager');
 const gekkoManager = cache.get('gekkos');
 
 const base = require('./baseConfig');
@@ -14,10 +15,27 @@ const base = require('./baseConfig');
 module.exports = function *() {
   const mode = this.request.body.mode;
 
-  let config = {}
+  let config = {};
 
   _.merge(config, base, this.request.body);
 
+  // Attach API keys
+  if(config.trader && config.trader.enabled) {
+
+    const keys = apiKeyManager._getApiKeyPair(config.watch.exchange);
+
+    if(!keys) {
+      this.body = 'No API keys found for this exchange.';
+      return;
+    }
+
+    _.merge(
+      config.trader,
+      keys
+    );
+  }
+
+  // set type
   if(mode === 'realtime') {
     if(config.market && config.market.type)
       var type = config.market.type;
@@ -131,6 +149,11 @@ module.exports = function *() {
 
     gekko.trades = [];
     gekko.roundtrips = [];
+
+    if(config.trader && config.trader.enabled)
+      gekko.trader = 'tradebot';
+    else
+      gekko.trader = 'paper trader';
   }
 
   gekkoManager.add(gekko);

@@ -7,7 +7,7 @@ var config = {};
 //                          GENERAL SETTINGS
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-config.debug = false; // for additional logging / debugging
+config.debug = true; // for additional logging / debugging
 
 // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 //                         WATCHING A MARKET
@@ -15,7 +15,7 @@ config.debug = false; // for additional logging / debugging
 
 config.watch = {
 
-  // see https://github.com/askmike/gekko#supported-exchanges
+  // see https://gekko.wizb.it/docs/introduction/supported_exchanges.html
   exchange: 'poloniex',
   currency: 'USDT',
   asset: 'BTC',
@@ -203,7 +203,10 @@ config.paperTrader = {
   fee: 0.25,
   // how much slippage/spread should Gekko assume per trade?
   slippage: 0.05,
-  // what is the risk free return in % (to calculate sharpe ratio)
+}
+
+config.performanceAnalyzer = {
+  enabled: true,
   riskFreeReturn: 5
 }
 
@@ -214,7 +217,8 @@ config.trader = {
   enabled: false,
   key: '',
   secret: '',
-  username: '' // your username, only required for specific exchanges.
+  username: '', // your username, only required for specific exchanges.
+  passphrase: '' // GDAX, requires a passphrase.
 }
 
 config.adviceLogger = {
@@ -298,6 +302,24 @@ config.telegrambot = {
   botName: 'gekkobot'
 }
 
+config.twitter = {
+    // sends pushbullets if true
+  enabled: false,
+    // Send 'Gekko starting' message if true
+  sendMessageOnStart: false,
+    // disable advice printout if it's soft
+  muteSoft: false,
+  tag: '[GEKKO]',
+    // twitter consumer key
+  consumer_key: '',
+    // twitter consumer secret
+  consumer_secret: '',
+    // twitter access token key
+  access_token_key: '',
+    // twitter access token secret
+  access_token_secret: ''
+};
+
 config.xmppbot = {
   enabled: false,
   emitUpdates: false,
@@ -354,10 +376,7 @@ config.sqlite = {
   dataDirectory: 'history',
   version: 0.1,
 
-  dependencies: [{
-    module: 'sqlite3',
-    version: '3.1.4'
-  }]
+  dependencies: []
 }
 
   // Postgres adapter example config (please note: requires postgres >= 9.5):
