@@ -5,5 +5,5 @@ historySize = 25
 method = "MACD"
 
 [talib]
-enabled = false
+enabled = true
 version = "1.0.2"
